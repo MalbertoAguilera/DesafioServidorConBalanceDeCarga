@@ -8,12 +8,8 @@ const apiAleatorios = (cantidad) => {
     for (let index = 0; index < cantidad; index++)
       arrayAleatorios[index] = generarNumerosAleatorios();
 
-	console.log("-------------------------------ARRAY----------------------");
-	console.log(arrayAleatorios);
-
 	const objetoRepetidos = contarRepetidos(arrayAleatorios);
-	console.log("---------------------OBJETO REPETIDOS----------------------");
-	console.log(objetoRepetidos);
+
 	return objetoRepetidos;
 
 };

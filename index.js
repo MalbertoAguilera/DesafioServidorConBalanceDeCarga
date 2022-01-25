@@ -16,115 +16,123 @@ const generarUsuarios = require("./utils/generarUsuarios");
 const listarMensajesNormalizados = require("./utils/listarMensajesNormalizados");
 const objectSession = require("./config/session");
 const session = require("express-session");
-const path = require ("path");
+const path = require("path");
 const dotenv = require("dotenv").config();
-const objectInfo = require("./config/ObjectInfo")
-
-const parseArg = require("minimist");
-const options = {default:{PORT:8080}}
-const objectMinimist = parseArg(process.argv.slice(2),options);
-console.log(objectMinimist);
-const PORT = objectMinimist.PORT ;//pasar como --PORT=(numero)
+const objectInfo = require("./config/ObjectInfo");
 
 const apiRandom = require("./routes/numerosAleatorios");
+const cluster = require("cluster");
+const numCPU = require("os").cpus().length;
+const parseArg = require("minimist");
 
-console.log(objectInfo);
+const options = { default: { PORT: 8080 } };
+const objectMinimist = parseArg(process.argv.slice(2), options);
+const PORT = objectMinimist.PORT; //pasar como --PORT=(numero)
+const modoCluster = objectMinimist.modo
+
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
+app.use(express.static("public"));
 app.set("view engine", "ejs");
-
 app.use(session(objectSession));
 
-app.use(apiRandom);
+if (modoCluster && cluster.isMaster) {
+  for (let index = 0; index < numCPU; index++) {
+    cluster.fork();
+  }
+} else {
 
-//websocket
-//abre canal de parte del servidor
-//connection EVENTO
-io.on("connection", async (socket) => {
-  console.log("Cliente conectado");
+  app.use(apiRandom);
 
-  //Socket PRODUCTOS
-  socket.emit("server_sendProducts", await handlerProducts.getAll());
+  //websocket
+  //abre canal de parte del servidor
+  //connection EVENTO
+  io.on("connection", async (socket) => {
+    console.log("Cliente conectado");
 
-  socket.on("client_newProduct", async (item) => {
-    await handlerProducts.save(item);
-    io.emit("server_sendProducts", await handlerProducts.getAll());
-  });
-  //FIN Socket PRODUCTOS
+    //Socket PRODUCTOS
+    socket.emit("server_sendProducts", await handlerProducts.getAll());
 
-  //Socket MENSAJES
-  socket.emit(
-    "server_sendMessages",
-    listarMensajesNormalizados(await handlerMessages.getAll())
-  );
+    socket.on("client_newProduct", async (item) => {
+      await handlerProducts.save(item);
+      io.emit("server_sendProducts", await handlerProducts.getAll());
+    });
+    //FIN Socket PRODUCTOS
 
-  socket.on("client_newMessage", async (objmessage) => {
-    await handlerMessages.save(objmessage);
-    io.emit(
+    //Socket MENSAJES
+    socket.emit(
       "server_sendMessages",
       listarMensajesNormalizados(await handlerMessages.getAll())
     );
+
+    socket.on("client_newMessage", async (objmessage) => {
+      await handlerMessages.save(objmessage);
+      io.emit(
+        "server_sendMessages",
+        listarMensajesNormalizados(await handlerMessages.getAll())
+      );
+    });
   });
-});
 
-app.get("/info", (req, res) => {
-  res.json(objectInfo);
-});
-
-app.get("/api/productos-test", (req, res) => {
-  res.json(generarUsuarios());
-});
-
-app.get('/', (req, res) => {
-  res.redirect('/home')
-})
-
-app.get("/home", (req, res) => {
-  const nombre = req.session.nombre;
-  console.log(nombre);
-  if (!nombre) {
-    return res.redirect("/login");
-  }
-
-  res.render(path.join(process.cwd(), "public/index.ejs"), {
-    nombre: req.session.nombre,
+  app.get("/info", (req, res) => {
+    res.json(objectInfo);
   });
-});
 
-app.get('/login', (req, res) => {
-  const nombre = req.session.nombre
-  if (nombre) {
-      res.redirect('/')
-  } else {
-      res.sendFile(path.join(process.cwd(), 'public/views/login.html'))
-  }
-})
+  app.get("/api/productos-test", (req, res) => {
+    res.json(generarUsuarios());
+  });
 
-app.post('/login', (req, res) => {
-  req.session.nombre = req.body.nombre
-  res.redirect('/home')
-})
+  app.get("/", (req, res) => {
+    res.redirect("/home");
+  });
 
-app.get('/logout', (req, res) => {
-  const nombre = req.session.nombre
-  if (nombre) {
-      req.session.destroy(err => {
-          if (!err) {
-              res.render(path.join(process.cwd(), 'public/views/pages/logout.ejs'), { nombre })
-          } else {
-              res.redirect('/')
-          }
-      })
-  } else {
-      res.redirect('/')
-  }
-})
+  app.get("/home", (req, res) => {
+    const nombre = req.session.nombre;
+    console.log(nombre);
+    if (!nombre) {
+      return res.redirect("/login");
+    }
 
-server.listen(PORT, () => {
-  console.log(
-    `El servidor se encuentra escuchando por el puerto ${server.address().port}`
-  );
-});
-server.on("error", (error) => console.log(`Error en servidor ${error}`));
+    res.render(path.join(process.cwd(), "public/index.ejs"), {
+      nombre: req.session.nombre,
+    });
+  });
+
+  app.get("/login", (req, res) => {
+    const nombre = req.session.nombre;
+    if (nombre) {
+      res.redirect("/");
+    } else {
+      res.sendFile(path.join(process.cwd(), "public/views/login.html"));
+    }
+  });
+
+  app.post("/login", (req, res) => {
+    req.session.nombre = req.body.nombre;
+    res.redirect("/home");
+  });
+
+  app.get("/logout", (req, res) => {
+    const nombre = req.session.nombre;
+    if (nombre) {
+      req.session.destroy((err) => {
+        if (!err) {
+          res.render(
+            path.join(process.cwd(), "public/views/pages/logout.ejs"),
+            { nombre }
+          );
+        } else {
+          res.redirect("/");
+        }
+      });
+    } else {
+      res.redirect("/");
+    }
+  });
+
+  server.listen(PORT, () => {
+    console.log(`El servidor se encuentra escuchando por el puerto ${server.address().port} --- PID ${process.pid}`);
+  });
+  server.on("error", (error) => console.log(`Error en servidor ${error}`));
+}
