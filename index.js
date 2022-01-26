@@ -12,23 +12,28 @@ const filePathProducts = "./db/productos.txt";
 const filePathMessages = "./db/messages.txt";
 const handlerProducts = new Contenedor(filePathProducts);
 const handlerMessages = new Contenedor(filePathMessages);
-const generarUsuarios = require("./utils/generarUsuarios");
 const listarMensajesNormalizados = require("./utils/listarMensajesNormalizados");
 const objectSession = require("./config/session");
 const session = require("express-session");
-const path = require("path");
-const dotenv = require("dotenv").config();
-const objectInfo = require("./config/ObjectInfo");
 
-const apiRandom = require("./routes/numerosAleatorios");
+const dotenv = require("dotenv").config();
+
+
+//-----------rutas
+const routeNumAleatorios = require("./routes/numerosAleatorios");
+const routeInfo = require("./routes/routeInfo");
+const routeProductosTest = require("./routes/routeProductosTest");
+const routeLogin = require("./routes/routeLogin");
+//-----------rutas
+
 const cluster = require("cluster");
 const numCPU = require("os").cpus().length;
 const parseArg = require("minimist");
 
-const options = { default: { PORT: 8080 } };
+const options = { default: { port: 8080 } };
 const objectMinimist = parseArg(process.argv.slice(2), options);
-const PORT = objectMinimist.PORT; //pasar como --PORT=(numero)
-const modoCluster = objectMinimist.modo
+const PORT = objectMinimist.port; //pasar como --port=(numero)
+const modoCluster = objectMinimist.modo ==="cluster";
 
 
 app.use(express.json());
@@ -43,7 +48,11 @@ if (modoCluster && cluster.isMaster) {
   }
 } else {
 
-  app.use(apiRandom);
+  app.use(routeNumAleatorios);
+  app.use(routeInfo);
+  app.use(routeProductosTest);
+  app.use(routeLogin);
+  
 
   //websocket
   //abre canal de parte del servidor
@@ -75,62 +84,6 @@ if (modoCluster && cluster.isMaster) {
     });
   });
 
-  app.get("/info", (req, res) => {
-    objectInfo["qtyOfCPU"]=numCPU;
-    res.json(objectInfo);
-  });
-
-  app.get("/api/productos-test", (req, res) => {
-    res.json(generarUsuarios());
-  });
-
-  app.get("/", (req, res) => {
-    res.redirect("/home");
-  });
-
-  app.get("/home", (req, res) => {
-    const nombre = req.session.nombre;
-    console.log(nombre);
-    if (!nombre) {
-      return res.redirect("/login");
-    }
-
-    res.render(path.join(process.cwd(), "public/index.ejs"), {
-      nombre: req.session.nombre,
-    });
-  });
-
-  app.get("/login", (req, res) => {
-    const nombre = req.session.nombre;
-    if (nombre) {
-      res.redirect("/");
-    } else {
-      res.sendFile(path.join(process.cwd(), "public/views/login.html"));
-    }
-  });
-
-  app.post("/login", (req, res) => {
-    req.session.nombre = req.body.nombre;
-    res.redirect("/home");
-  });
-
-  app.get("/logout", (req, res) => {
-    const nombre = req.session.nombre;
-    if (nombre) {
-      req.session.destroy((err) => {
-        if (!err) {
-          res.render(
-            path.join(process.cwd(), "public/views/pages/logout.ejs"),
-            { nombre }
-          );
-        } else {
-          res.redirect("/");
-        }
-      });
-    } else {
-      res.redirect("/");
-    }
-  });
 
   server.listen(PORT, () => {
     console.log(`El servidor se encuentra escuchando por el puerto ${server.address().port} --- PID ${process.pid}`);
