@@ -76,6 +76,7 @@ if (modoCluster && cluster.isMaster) {
   });
 
   app.get("/info", (req, res) => {
+    objectInfo["qtyOfCPU"]=numCPU;
     res.json(objectInfo);
   });
 
